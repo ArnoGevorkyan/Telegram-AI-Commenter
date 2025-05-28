@@ -1,0 +1,21 @@
+{
+  "name": "telegram-auto-commenter",
+  "version": "1.0.0",
+  "description": "A script to automatically comment on Telegram channel posts using OpenAI",
+  "main": "index.js",
+  "type": "module",
+  "scripts": {
+    "start": "node index.js",
+    "advanced": "node advanced.js",
+    "safe": "node safe-commenter.js",
+    "verify": "node auto-verify.js",
+    "test-channel": "node channel-test.js",
+    "group": "node group-commenter.js"
+  },
+  "dependencies": {
+    "telegram": "^2.19.10",
+    "openai": "^4.20.1",
+    "dotenv": "^16.3.1",
+    "input": "^1.0.1"
+  }
+} 

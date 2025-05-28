@@ -1,0 +1,6 @@
+.env
+telegram_session.json
+bot_messages.json
+temp/
+node_modules/
+package-lock.json
