@@ -26,8 +26,7 @@ Follow these steps to get the bot up and running.
 
 First, clone the repository to your local machine:
 ```sh
-git clone https://github.com/ArnoGevorkyan/apho-commenter.git
-cd apho-commenter
+git clone https://github.com/ArnoGevorkyan/Telegram-AI-Commenter
 ```
 
 Then, install the necessary dependencies:
