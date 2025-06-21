@@ -91,41 +91,63 @@ async function main() {
   fs.writeFileSync(SESSION_FILE, sessionString);
   console.log('Session saved');
 
-  // Resolve the target channel entity
-  console.log(`Resolving channel: ${targetChannel}`);
-  const channel = await client.getEntity(targetChannel);
-  console.log(`Monitoring channel: ${channel.title || targetChannel}`);
-  
-  // Store channel ID as string for consistent comparison
-  const channelIdStr = String(channel.id);
-  console.log(`Using channel ID (as string): ${channelIdStr}`);
+  // Get the list of channels from the environment variable
+  const targetChannels = (process.env.TARGET_CHANNEL || '').split(',').map(ch => ch.trim()).filter(ch => ch);
 
+  if (targetChannels.length === 0) {
+    console.error('TARGET_CHANNEL environment variable is empty or not set. Please add channel usernames, separated by commas.');
+    process.exit(1);
+  }
+
+  console.log(`Found ${targetChannels.length} channel(s) to monitor in .env file.`);
+
+  // Resolve channel entities and store their IDs
+  const monitoredChannelIds = new Set();
+  for (const channelUsername of targetChannels) {
+    try {
+      console.log(`Resolving channel: ${channelUsername}`);
+      const channel = await client.getEntity(channelUsername);
+      monitoredChannelIds.add(String(channel.id));
+      console.log(`Successfully resolved '${channel.title}' (ID: ${channel.id}). Now monitoring.`);
+    } catch (error) {
+      console.error(`Could not resolve channel "${channelUsername}". Error: ${error.message}. Skipping.`);
+    }
+  }
+
+  if (monitoredChannelIds.size === 0) {
+    console.error("Fatal: Could not resolve any of the target channels. Please check the usernames in your .env file. Exiting.");
+    process.exit(1);
+  }
+
+  console.log(`Monitoring ${monitoredChannelIds.size} channels in total.`);
+  
   // Add event handler for new messages
   client.addEventHandler(async (event) => {
     const message = event.message;
+    if (!message || !message.peerId || !message.peerId.channelId) {
+      // Not a channel message, ignore
+      return;
+    }
     
-    // Check if the message is from the target channel
-    if (message.peerId && message.peerId.channelId) {
-      // Convert BigInt to string for comparison
-      const messageChannelIdStr = String(message.peerId.channelId);
+    const messageChannelIdStr = String(message.peerId.channelId);
+    
+    // Check if the message is from one of the monitored channels
+    if (monitoredChannelIds.has(messageChannelIdStr)) {
+      console.log(`New post detected in a monitored channel: ${message.text ? message.text.substring(0, 50) : '[no text]'}...`);
       
-      if (messageChannelIdStr === channelIdStr) {
-        console.log(`New post detected: ${message.text ? message.text.substring(0, 50) : '[no text]'}...`);
-        
-        // Generate comment
-        const comment = await generateComment(message.text || "");
-        console.log(`Generated comment: ${comment}`);
-        
-        try {
-          // Reply to the post
-          await client.sendMessage(channel, {
-            message: comment,
-            replyTo: message.id
-          });
-          console.log('Comment posted successfully');
-        } catch (error) {
-          console.error('Error posting comment:', error);
-        }
+      // Generate comment
+      const comment = await generateComment(message.text || "");
+      console.log(`Generated comment: ${comment}`);
+      
+      try {
+        // Reply to the post in the correct channel
+        await client.sendMessage(message.peerId, {
+          message: comment,
+          replyTo: message.id
+        });
+        console.log('Comment posted successfully');
+      } catch (error) {
+        console.error('Error posting comment:', error);
       }
     }
   }, new NewMessage({}));

@@ -1,66 +1,41 @@
-# Telegram Auto Commenter
+# Telegram Auto-Commenter Bot
 
-This script allows you to set up a Telegram user account (not a bot) to automatically comment on new posts in a specific channel using OpenAI's GPT-4o-mini to generate contextually relevant comments.
+This bot uses OpenAI's GPT models to automatically post context-aware comments on new posts in specified Telegram channels or groups.
 
-## Prerequisites
+## Features
 
-- Node.js 16.x or higher
-- A Telegram account
-- Telegram API credentials (api_id and api_hash)
-- OpenAI API key
+- **Multi-Channel & Group Monitoring**: Can monitor multiple channels simultaneously or a specific group.
+- **AI-Powered Comments**: Generates relevant comments using `gpt-4o-mini`.
+- **Media Analysis**: Can interpret photos, polls, and other media to generate better comments.
+- **Multiple Modes**: Includes different scripts for various use cases (basic, safe, group-focused).
+- **Session Persistence**: Saves your Telegram session to avoid logging in on every run.
+- **Rate Limiting**: A 'safe' mode is included to help prevent account restrictions by limiting the comment frequency.
 
-## Setup
+## Getting Started
 
-1. Clone this repository
-2. Install dependencies:
-   ```
-   npm install
-   ```
-3. Set up your environment variables:
-   - Copy `.env.example` to `.env`
-   - Fill in your credentials:
-     ```
-     # Get api_id and api_hash from https://my.telegram.org/apps
-     TELEGRAM_API_ID=your_api_id
-     TELEGRAM_API_HASH=your_api_hash
-     # Your phone number in international format
-     TELEGRAM_PHONE_NUMBER=+1234567890
-     # The channel username to monitor (without @)
-     TARGET_CHANNEL=channelname
-     
-     # Get from https://platform.openai.com/api-keys
-     OPENAI_API_KEY=your_openai_api_key
-     ```
+Follow these steps to get the bot up and running.
 
-## Obtaining Telegram API Credentials
+### 1. Prerequisites
 
-1. Visit https://my.telegram.org/apps
-2. Log in with your phone number
-3. Fill in the form to create a new application
-4. You will receive an `api_id` (number) and `api_hash` (string)
+- [Node.js](https://nodejs.org/) (v16 or higher)
+- [npm](https://www.npmjs.com/) (comes with Node.js)
+- A Telegram account with API credentials.
+- An OpenAI API key.
 
-## Usage
+### 2. Installation
 
-### Basic Version
-
-Run the basic script:
-
-```
-npm start
+First, clone the repository to your local machine:
+```sh
+git clone https://github.com/ArnoGevorkyan/apho-commenter.git
+cd apho-commenter
 ```
 
-### Advanced Version
-
-Run the advanced script:
-
-```
-npm run advanced
+Then, install the necessary dependencies:
+```sh
+npm install
 ```
 
-The advanced version includes:
-- Support for media posts (photos, videos, documents, etc.)
-- More detailed logging
-- Random delays before commenting (to appear more natural)
+### 3. Configuration
 - Better error handling
 
 ### Safe Version (Recommended)
@@ -136,6 +111,10 @@ const rateLimiter = new RateLimiter({
 
 The rate limiter tracks comment history and ensures you stay within limits.
 
+## Contact Me
+
+- [Telegram](https://t.me/ArnoGevorkyan)
+  
 ## License
 
 MIT 

@@ -187,81 +187,83 @@ async function main() {
   fs.writeFileSync(SESSION_FILE, sessionString);
   console.log('Session saved');
 
-  // Resolve the target channel entity
-  console.log(`Resolving channel: ${targetChannel}`);
-  try {
-    const channel = await client.getEntity(targetChannel);
-    console.log(`Monitoring channel: ${channel.title || targetChannel}`);
-    console.log(`Channel ID: ${channel.id}`);
-    console.log(`Full channel info:`, JSON.stringify(channel, null, 2));
-    
-    // Store channel ID as string for consistent comparison
-    const channelIdStr = String(channel.id);
-    console.log(`Using channel ID (as string): ${channelIdStr}`);
-
-    // Add event handler for new messages
-    console.log("Adding event handler for new messages...");
-    client.addEventHandler(async (event) => {
-      console.log("Event received:", event.className);
-      const message = event.message;
-      if (!message) {
-        console.log("Event has no message property");
-        return;
-      }
-      
-      console.log(`Message from:`, message.peerId);
-      
-      // Check if the message is from the target channel
-      if (message.peerId && message.peerId.channelId) {
-        // Convert the BigInt to a string for comparison
-        const messageChannelIdStr = String(message.peerId.channelId);
-        console.log(`Comparing channel IDs (as strings): message channel=${messageChannelIdStr}, target channel=${channelIdStr}`);
-      
-        if (messageChannelIdStr === channelIdStr) {
-          console.log(`MATCH! New post detected at ${new Date().toISOString()}`);
-          console.log(`Post content: ${message.text}`);
-          
-          // Process any media in the message
-          const mediaDescriptions = await processMedia(client, message);
-          if (mediaDescriptions.length > 0) {
-            console.log(`Post contains media: ${mediaDescriptions.join(', ')}`);
-          }
-          
-          // Check rate limiter and wait if necessary
-          console.log("Checking rate limits...");
-          await rateLimiter.handleComment();
-          
-          // Generate comment based on both text and media
-          const comment = await generateComment(message, mediaDescriptions);
-          console.log(`Generated comment: ${comment}`);
-          
-          try {
-            // Reply to the post immediately
-            await client.sendMessage(channel, {
-              message: comment,
-              replyTo: message.id
-            });
-            console.log('Comment posted successfully');
-          } catch (error) {
-            console.error('Error posting comment:', error);
-            // If we failed to post, don't count it against our rate limit
-            rateLimiter.hourHistory.pop();
-            rateLimiter.dayHistory.pop();
-          }
-        } else {
-          console.log(`Message from different channel (ID: ${messageChannelIdStr}), ignoring`);
-        }
-      } else {
-        console.log("Message not from a channel, ignoring");
-      }
-    }, new NewMessage({}));
-
-    console.log('Bot is running. Press Ctrl+C to stop.');
-  } catch (error) {
-    console.error('Error setting up channel monitoring:', error);
-    console.log('Make sure the TARGET_CHANNEL value in your .env file is correct (without the @ symbol)');
+  // Get the list of channels from the environment variable
+  const targetChannels = (process.env.TARGET_CHANNEL || '').split(',').map(ch => ch.trim()).filter(ch => ch);
+  
+  if (targetChannels.length === 0) {
+    console.error('TARGET_CHANNEL environment variable is empty or not set. Please add channel usernames, separated by commas.');
     process.exit(1);
   }
+
+  console.log(`Found ${targetChannels.length} channel(s) to monitor in .env file.`);
+
+  // Resolve channel entities and store their IDs
+  const monitoredChannelIds = new Set();
+  for (const channelUsername of targetChannels) {
+    try {
+      console.log(`Resolving channel: ${channelUsername}`);
+      const channel = await client.getEntity(channelUsername);
+      monitoredChannelIds.add(String(channel.id));
+      console.log(`Successfully resolved '${channel.title}' (ID: ${channel.id}). Now monitoring.`);
+    } catch (error) {
+      console.error(`Could not resolve channel "${channelUsername}". Error: ${error.message}. Skipping.`);
+    }
+  }
+
+  if (monitoredChannelIds.size === 0) {
+    console.error("Fatal: Could not resolve any of the target channels. Please check the usernames in your .env file. Exiting.");
+    process.exit(1);
+  }
+
+  console.log(`Monitoring ${monitoredChannelIds.size} channels in total.`);
+  console.log("Adding event handler for new messages...");
+
+  // Add event handler for new messages
+  client.addEventHandler(async (event) => {
+    const message = event.message;
+    if (!message || !message.peerId || !message.peerId.channelId) {
+      // Not a channel message, ignore
+      return;
+    }
+
+    const messageChannelIdStr = String(message.peerId.channelId);
+
+    // Check if the message is from one of the monitored channels
+    if (monitoredChannelIds.has(messageChannelIdStr)) {
+      console.log(`MATCH! New post in a monitored channel (ID: ${messageChannelIdStr}) at ${new Date().toISOString()}`);
+      console.log(`Post content: ${message.text ? `"${message.text.substring(0, 70)}..."` : "[No Text]"}`);
+      
+      // Process any media in the message
+      const mediaDescriptions = await processMedia(client, message);
+      if (mediaDescriptions.length > 0) {
+        console.log(`Post contains media: ${mediaDescriptions.join(', ')}`);
+      }
+      
+      // Check rate limiter and wait if necessary
+      console.log("Checking rate limits...");
+      await rateLimiter.handleComment();
+      
+      // Generate comment based on both text and media
+      const comment = await generateComment(message, mediaDescriptions);
+      console.log(`Generated comment: ${comment}`);
+      
+      try {
+        // Reply to the post immediately in the correct channel
+        await client.sendMessage(message.peerId, {
+          message: comment,
+          replyTo: message.id
+        });
+        console.log('Comment posted successfully');
+      } catch (error) {
+        console.error('Error posting comment:', error);
+        // If we failed to post, don't count it against our rate limit
+        rateLimiter.hourHistory.pop();
+        rateLimiter.dayHistory.pop();
+      }
+    }
+  }, new NewMessage({}));
+
+  console.log('Bot is running. Press Ctrl+C to stop.');
 }
 
 main().catch(console.error); 
