@@ -111,6 +111,16 @@ const rateLimiter = new RateLimiter({
 
 The rate limiter tracks comment history and ensures you stay within limits.
 
+## Updating the Bot
+
+To get the latest features and bug fixes, you can update the bot by running this command from the project directory:
+
+```sh
+git pull
+```
+
+This will download the latest changes from GitHub.
+
 ## Contact Me
 
 - [Telegram](https://t.me/ArnoGevorkyan)

@@ -1,4 +1,4 @@
-import { TelegramClient } from 'telegram';
+import { TelegramClient, Api } from 'telegram';
 import { StringSession } from 'telegram/sessions/index.js';
 import input from 'input';
 import { NewMessage } from 'telegram/events/index.js';
@@ -101,51 +101,70 @@ async function main() {
 
   console.log(`Found ${targetChannels.length} channel(s) to monitor in .env file.`);
 
-  // Resolve channel entities and store their IDs
-  const monitoredChannelIds = new Set();
+  // Use a Map to store { channelId: discussionGroupId }
+  const monitoredChannels = new Map();
   for (const channelUsername of targetChannels) {
     try {
       console.log(`Resolving channel: ${channelUsername}`);
-      const channel = await client.getEntity(channelUsername);
-      monitoredChannelIds.add(String(channel.id));
-      console.log(`Successfully resolved '${channel.title}' (ID: ${channel.id}). Now monitoring.`);
+      const entity = await client.getEntity(channelUsername);
+      
+      // Use GetFullChannel to reliably get linked chat information
+      const fullChannel = await client.invoke(
+        new Api.channels.GetFullChannel({ channel: entity })
+      );
+
+      const channelId = String(entity.id);
+      // The discussion group ID is in fullChat.linkedChatId
+      const discussionGroupId = fullChannel.fullChat.linkedChatId;
+
+      if (discussionGroupId) {
+        monitoredChannels.set(channelId, discussionGroupId);
+        console.log(`Successfully resolved channel '${entity.title}'. Will post comments to linked group ${discussionGroupId}.`);
+      } else if (entity.megagroup) {
+        // Fallback for older supergroups or edge cases
+        monitoredChannels.set(channelId, channelId);
+        console.log(`Successfully resolved group '${entity.title}'. Will post comments directly.`);
+      } else {
+        console.warn(`Channel '${entity.title}' does not appear to have a comment section. Skipping.`);
+      }
     } catch (error) {
       console.error(`Could not resolve channel "${channelUsername}". Error: ${error.message}. Skipping.`);
     }
   }
 
-  if (monitoredChannelIds.size === 0) {
-    console.error("Fatal: Could not resolve any of the target channels. Please check the usernames in your .env file. Exiting.");
+  if (monitoredChannels.size === 0) {
+    console.error("Fatal: Could not resolve any channels with linked discussion groups. Please check the usernames in your .env file. Exiting.");
     process.exit(1);
   }
 
-  console.log(`Monitoring ${monitoredChannelIds.size} channels in total.`);
+  console.log(`Monitoring ${monitoredChannels.size} channels with discussion groups in total.`);
   
   // Add event handler for new messages
   client.addEventHandler(async (event) => {
     const message = event.message;
     if (!message || !message.peerId || !message.peerId.channelId) {
-      // Not a channel message, ignore
-      return;
+      return; // Not a channel message
     }
     
     const messageChannelIdStr = String(message.peerId.channelId);
     
     // Check if the message is from one of the monitored channels
-    if (monitoredChannelIds.has(messageChannelIdStr)) {
-      console.log(`New post detected in a monitored channel: ${message.text ? message.text.substring(0, 50) : '[no text]'}...`);
+    if (monitoredChannels.has(messageChannelIdStr)) {
+      const discussionGroupId = monitoredChannels.get(messageChannelIdStr);
+
+      console.log(`New post detected in monitored channel ${message.peerId.channelId}: ${message.text ? message.text.substring(0, 50) : '[no text]'}...`);
       
       // Generate comment
       const comment = await generateComment(message.text || "");
       console.log(`Generated comment: ${comment}`);
       
       try {
-        // Reply to the post in the correct channel
-        await client.sendMessage(message.peerId, {
+        // Reply to the post in the linked discussion group
+        await client.sendMessage(discussionGroupId, {
           message: comment,
           replyTo: message.id
         });
-        console.log('Comment posted successfully');
+        console.log(`Comment posted successfully to discussion group ${discussionGroupId}.`);
       } catch (error) {
         console.error('Error posting comment:', error);
       }
