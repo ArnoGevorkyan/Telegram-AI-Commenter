@@ -136,6 +136,10 @@ const rateLimiter = new RateLimiter({
 
 The rate limiter tracks comment history and ensures you stay within limits.
 
+## Contact Me
+
+- [Telegram](https://t.me/ArnoGevorkyan)
+  
 ## License
 
 MIT 
